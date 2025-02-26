@@ -1,0 +1,3 @@
+[submodule "LAB/MDS-SDM-AcademicGraphs"]
+	path = LAB/MDS-SDM-AcademicGraphs
+	url = git@github.com:AimbotParce/MDS-SDM-AcademicGraphs.git
