@@ -1,0 +1,45 @@
+[INFO ] 2025-05-14 13:34:36,980 [main | c.o.g.Config] Using 'jar:file:/opt/graphdb/dist/lib/graphdb-application-common-11.0.1.jar!/com/ontotext/graphdb/default-logback.xml' as logback's configuration file
+[INFO ] 2025-05-14 13:34:37,256 [main | c.o.g.s.GraphDB] Starting GraphDB in workbench mode.
+[INFO ] 2025-05-14 13:34:45,502 [main | c.o.g.Config] GraphDB Home directory: /opt/graphdb/home
+[INFO ] 2025-05-14 13:34:45,503 [main | c.o.g.Config] GraphDB Config directory: /opt/graphdb/home/conf
+[INFO ] 2025-05-14 13:34:45,503 [main | c.o.g.Config] GraphDB Data directory: /opt/graphdb/home/data
+[INFO ] 2025-05-14 13:34:45,503 [main | c.o.g.Config] GraphDB Work directory: /opt/graphdb/home/work
+[INFO ] 2025-05-14 13:34:45,503 [main | c.o.g.Config] GraphDB Logs directory: /opt/graphdb/home/logs
+[ERROR] 2025-05-14 13:34:45,729 [main | c.o.l.LicenseRegistry] License could not be loaded: No license was set
+[ERROR] 2025-05-14 13:34:45,729 [main | c.o.l.LicenseRegistry] License can be set in one of the following ways (in order of preference):
+- System or config property 'graphdb.license.file'
+- File 'graphdb.license' in config directory (/opt/graphdb/home/conf)
+- Set through Workbench
+Please refer to the documentation for more information on how to set the license.
+[INFO ] 2025-05-14 13:34:46,241 [main | c.o.f.c.s.r.GraphDBRpcServer] Started gRPC server on port 7300 successfully
+[INFO ] 2025-05-14 13:34:46,714 [main | c.o.g.GraphDBRepositoryManager] Version: 11.0, revision: -1359880663
+[INFO ] 2025-05-14 13:34:46,714 [main | c.o.g.GraphDBRepositoryManager] Build date: Wed Apr 30 14:22:46 UTC 2025
+[INFO ] 2025-05-14 13:34:46,742 [main | c.o.f.g.GraphQLService] GraphQL server initialized
+[INFO ] 2025-05-14 13:34:47,519 [main | c.o.g.s.GraphDB] Started GraphDB in workbench mode at port 7200.
+[INFO ] 2025-05-14 15:00:53,162 [main | c.o.g.Config] Using 'jar:file:/opt/graphdb/dist/lib/graphdb-application-common-11.0.1.jar!/com/ontotext/graphdb/default-logback.xml' as logback's configuration file
+[INFO ] 2025-05-14 15:00:53,522 [main | c.o.g.s.GraphDB] Starting GraphDB in workbench mode.
+[INFO ] 2025-05-14 15:01:02,566 [main | c.o.g.Config] GraphDB Home directory: /opt/graphdb/home
+[INFO ] 2025-05-14 15:01:02,567 [main | c.o.g.Config] GraphDB Config directory: /opt/graphdb/home/conf
+[INFO ] 2025-05-14 15:01:02,567 [main | c.o.g.Config] GraphDB Data directory: /opt/graphdb/home/data
+[INFO ] 2025-05-14 15:01:02,567 [main | c.o.g.Config] GraphDB Work directory: /opt/graphdb/home/work
+[INFO ] 2025-05-14 15:01:02,567 [main | c.o.g.Config] GraphDB Logs directory: /opt/graphdb/home/logs
+[ERROR] 2025-05-14 15:01:02,820 [main | c.o.l.LicenseRegistry] License could not be loaded: No license was set
+[ERROR] 2025-05-14 15:01:02,821 [main | c.o.l.LicenseRegistry] License can be set in one of the following ways (in order of preference):
+- System or config property 'graphdb.license.file'
+- File 'graphdb.license' in config directory (/opt/graphdb/home/conf)
+- Set through Workbench
+Please refer to the documentation for more information on how to set the license.
+[INFO ] 2025-05-14 15:01:03,239 [main | c.o.f.c.s.r.GraphDBRpcServer] Started gRPC server on port 7300 successfully
+[WARN ] 2025-05-14 15:01:03,688 [main | o.e.r.s.h.DirectoryLockManager] Removing invalid lock 1@1e9190c376f2
+[INFO ] 2025-05-14 15:01:03,698 [main | c.o.g.GraphDBRepositoryManager] Version: 11.0, revision: -1359880663
+[INFO ] 2025-05-14 15:01:03,699 [main | c.o.g.GraphDBRepositoryManager] Build date: Wed Apr 30 14:22:46 UTC 2025
+[INFO ] 2025-05-14 15:01:03,743 [main | c.o.f.g.GraphQLService] GraphQL server initialized
+[INFO ] 2025-05-14 15:01:04,672 [main | c.o.g.s.GraphDB] Started GraphDB in workbench mode at port 7200.
+[ERROR] 2025-05-14 20:20:22,209 [Thread-3 | c.o.l.LicenseRegistry] License could not be loaded: No license was set
+[ERROR] 2025-05-14 20:20:22,210 [Thread-3 | c.o.l.LicenseRegistry] License can be set in one of the following ways (in order of preference):
+- System or config property 'graphdb.license.file'
+- File 'graphdb.license' in config directory (/opt/graphdb/home/conf)
+- Set through Workbench
+Please refer to the documentation for more information on how to set the license.
+[INFO ] 2025-05-14 20:21:18,286 [Thread-4 | c.o.g.s.GraphDB] Stopping GraphDB.
+[INFO ] 2025-05-14 20:21:18,307 [Thread-4 | c.o.f.c.s.SemanticDataManagement] Shutting down current semantic location
