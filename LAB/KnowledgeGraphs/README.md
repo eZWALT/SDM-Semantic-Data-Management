@@ -8,6 +8,22 @@ This project consists of the creation of a knowledge graph for capturing the dom
 
 ![Clustering Visualization](docs/clustering.png)
 
+## Structure
+```bash
+📁 KnowledgeGraphs/
+├── 📁 data/: Some data fragments of GraphDB
+├── 📁 docs/: Documents and resources
+├── 📁 models/: Embedding models 
+├── 📁 queries/: SPARQL commonly used queries
+├── 📁 src/:
+│   └── embeddings/: KG. Embedding related scripts and interactive notebooks
+│   └── ontology/: ABOX/TBOX definition and querying
+│   └── orchestrator.py/: Execute everything sequentially (Driver)
+├── 📄 README.md
+├── 📄 requirements.txt
+```
+
+
 ## Usage 
 
 ### Knowledge Graph 
