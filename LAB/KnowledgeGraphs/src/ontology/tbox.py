@@ -63,6 +63,7 @@ properties = [
     # Review process
     ("hasReview", "Paper", "Review"),
     ("performedBy", "Review", "Reviewer"),
+    ("hasContent", "Review", XSD.string),
 
     # Volume Year
     ("volumeYear", "Volume", XSD.gYear)
