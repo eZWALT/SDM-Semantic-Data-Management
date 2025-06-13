@@ -2,7 +2,6 @@
 # Ontology TBOX (Schema)                                                      #
 #                                                                             #
 # Section B.1                                                                 #
-# Author: ???                                                                 #
 # ===----------------------------------------------------------------------===#
 
 from rdflib import Graph, Namespace, RDF, RDFS, XSD
@@ -12,34 +11,42 @@ g = Graph()
 
 # Define Namespaces
 URL = Namespace("http://SDM.org/research/")
-g.bind("res", URL)  # res is short for research, which is the general domain.
+g.bind("res", URL)
 g.bind("rdfs", RDFS)
 
 # --- Classes ---
 classes = [
-    "Author", "Paper", "Conference", "Workshop", "Journal",
-    "Edition", "Proceedings", "Volume", "Review", "City", "Topic"
+    "Author", "Reviewer", "Paper", "Conference", "Workshop", "Journal",
+    "Edition", "Proceedings", "Volume", "Review", "City", "Topic", "Event"
 ]
 
 for cls in classes:
     g.add((URL[cls], RDF.type, RDFS.Class))
 
+# Subclasses
+g.add((URL["Conference"], RDFS.subClassOf, URL["Event"]))
+g.add((URL["Workshop"], RDFS.subClassOf, URL["Event"]))
+g.add((URL["Reviewer"], RDFS.subClassOf, URL["Author"]))
+
+# Subproperty
+g.add((URL["hasCorrespondingAuthor"], RDFS.subPropertyOf, URL["hasAuthor"]))
+
 # --- Properties (Domain/Range) ---
-# Format: (property, domain, range)
 properties = [
     # Authorship
-    ("writes", "Author", "Paper"),
+    # ("writes", "Author", "Paper"),
+    ("hasAuthor", "Paper", "Author"),
     ("hasCorrespondingAuthor", "Paper", "Author"),
 
     # Publication
     ("includesPaper", "Proceedings", "Paper"),
     ("hasProceedings", "Edition", "Proceedings"),
-    ("includedInVolume", "Paper", "Volume"),
+    ("publishedIn", "Paper", "Volume"),
     ("hasVolume", "Journal", "Volume"),
+    ("hasNumber", "Volume", XSD.integer),
 
     # Events
-    ("hasConferenceEdition", "Conference", "Edition"),
-    ("hasWorkshopEdition", "Workshop", "Edition"),
+    ("hasEdition", "Event", "Edition"),
     ("heldIn", "Edition", "City"),
     ("heldOn", "Edition", XSD.date),
 
@@ -51,12 +58,11 @@ properties = [
     ("hasKeywords", "Topic", XSD.string),
 
     # Abstract
-    ("hasAbstract", "Paper", XSD.string),  # Literal
+    ("hasAbstract", "Paper", XSD.string),
 
     # Review process
-    ("assignedTo", "Review", "Paper"),
-    ("hasReviewer", "Paper", "Author"),
-    ("performsReview", "Author", "Review"),
+    ("hasReview", "Paper", "Review"),
+    ("performedBy", "Review", "Reviewer"),
 
     # Volume Year
     ("volumeYear", "Volume", XSD.gYear)
@@ -73,40 +79,40 @@ for prop, domain, range_ in properties:
     else:
         g.add((URL[prop], RDFS.range, RDFS.Literal))
 
-# --- Serialize to RDF/XML (RDFS-compliant file) ---
+# Serialize to RDF/XML
 g.serialize(destination="GroupIvanWalter-B1-MartinezTroiani.rdfs", format="xml")
 
 # ------------------------------------------------------------
 # TBOX PROPERTY EXPLANATIONS
 # ------------------------------------------------------------
-# :writes                  An Author writes a Paper.
-# :hasCorrespondingAuthor  A Paper has one Author as its corresponding author.
-# :includedInVolume        A Paper is included in a specific Volume.
-# :hasVolume               A Journal includes one or more Volumes.
-# :volumeYear              A Volume is associated with a publication year (xsd:gYear).
-# :cites                   A Paper cites another Paper.
-# :aboutTopic              A Paper is about a specific Topic.
-# :hasKeywords             A Topic is described by one or more Keywords (xsd:string).
-# :hasAbstract             A Paper has a textual abstract (Literal).
-# :performsReview          An Author performs (writes) a Review.
-# :assignedTo              A Review is assigned to a specific Paper.
-# :hasReviewer             A Paper has one or more Reviewers (Authors). Shortcut property derived from performsReview + assignedTo
-# :hasConferenceEdition    A Conference has Editions.
-# :hasWorkshopEdition      A Workshop has Editions.
-# :heldIn                  An Edition is held in a City.
-# :heldOn                  An Edition is held on a specific date (xsd:date).
-# :hasProceedings          An Edition results in a Proceedings collection.
-# :includesPaper           A Proceedings includes all Papers presented at the Edition.
+# :hasAuthor              A Paper is written by one or more Authors.
+# :hasCorrespondingAuthor A Paper has one Author as its corresponding author (subproperty of hasAuthor).
+# :includesPaper          A Proceedings includes all Papers presented at the Edition.
+# :hasProceedings         An Edition results in a Proceedings collection.
+# :publishedIn            A Paper is published in a specific Volume.
+# :hasVolume              A Journal includes one or more Volumes.
+# :hasNumber              A Volume has a numeric identifier (e.g., Volume 2).
+# :volumeYear             A Volume is associated with a publication year (xsd:gYear).
+# :hasEdition             A Conference or Workshop (Event) has one or more Editions.
+# :heldIn                 An Edition is held in a City.
+# :heldOn                 An Edition is held on a specific date (xsd:date).
+# :cites                  A Paper cites another Paper.
+# :aboutTopic             A Paper is about a specific Topic.
+# :hasKeywords            A Topic is described by one or more Keywords (xsd:string).
+# :hasAbstract            A Paper has a textual abstract (Literal).
+# :hasReview              A Paper has a Review assigned to it.
+# :performedBy            A Review is performed by a Reviewer.
 
 # ------------------------------------------------------------
 # UNEXPRESSIBLE CONSTRAINTS IN RDFS (documented but not enforced)
 # ------------------------------------------------------------
 # - A Paper must have exactly one corresponding author.
-# - A Paper should have exactly three reviewers assigned.
+# - A Paper should have exactly three reviews.
 # - An Author cannot review their own Paper (i.e., reviewer ≠ author).
 # - A Journal can have multiple volumes per year (cardinality not enforced).
-# - Keywords could be modeled as Literals instead of a class; here modeled as a class for semantic richness.
-# - Workshops and Conferences are structurally similar but not related hierarchically (no subclass relation).
+# - Keywords could be modeled as separate class; here modeled as strings for simplicity.
+# - Reviewer is defined as a subclass of Author.
+# - Conference and Workshop are subclasses of Event; Editions apply generically to Events.
 
 # These constraints would require OWL constructs such as:
 # - owl:FunctionalProperty (for unique corresponding author)
@@ -116,3 +122,5 @@ g.serialize(destination="GroupIvanWalter-B1-MartinezTroiani.rdfs", format="xml")
 
 # In this TBOX, these constraints are documented but not enforced.
 # They should be handled at the application level or with OWL/SHACL validation where appropriate.
+
+# Removed :writes to avoid redundancy with :hasAuthor. Semantically inverse, but not expressible in RDFS.
