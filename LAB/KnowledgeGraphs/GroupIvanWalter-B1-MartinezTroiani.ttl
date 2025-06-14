@@ -1,0 +1,106 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix res: <http://SDM.org/research/> .
+
+res:Author a rdfs:Class .
+
+res:City a rdfs:Class .
+
+res:Conference a rdfs:Class ;
+    rdfs:subClassOf res:Event .
+
+res:Edition a rdfs:Class .
+
+res:Event a rdfs:Class .
+
+res:Journal a rdfs:Class .
+
+res:Paper a rdfs:Class .
+
+res:Proceedings a rdfs:Class .
+
+res:Review a rdfs:Class .
+
+res:Reviewer a rdfs:Class ;
+    rdfs:subClassOf res:Author .
+
+res:Topic a rdfs:Class .
+
+res:Volume a rdfs:Class .
+
+res:Workshop a rdfs:Class ;
+    rdfs:subClassOf res:Event .
+
+res:aboutTopic a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range res:Topic .
+
+res:cites a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range res:Paper .
+
+res:hasAbstract a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range <http://SDM.org/research/http://www.w3.org/2001/XMLSchema#string> .
+
+res:hasContent a rdf:Property ;
+    rdfs:domain res:Review ;
+    rdfs:range <http://SDM.org/research/http://www.w3.org/2001/XMLSchema#string> .
+
+res:hasCorrespondingAuthor a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range res:Author ;
+    rdfs:subPropertyOf res:hasAuthor .
+
+res:hasEdition a rdf:Property ;
+    rdfs:domain res:Event ;
+    rdfs:range res:Edition .
+
+res:hasKeywords a rdf:Property ;
+    rdfs:domain res:Topic ;
+    rdfs:range <http://SDM.org/research/http://www.w3.org/2001/XMLSchema#string> .
+
+res:hasNumber a rdf:Property ;
+    rdfs:domain res:Volume ;
+    rdfs:range <http://SDM.org/research/http://www.w3.org/2001/XMLSchema#integer> .
+
+res:hasProceedings a rdf:Property ;
+    rdfs:domain res:Edition ;
+    rdfs:range res:Proceedings .
+
+res:hasReview a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range res:Review .
+
+res:hasVolume a rdf:Property ;
+    rdfs:domain res:Journal ;
+    rdfs:range res:Volume .
+
+res:heldIn a rdf:Property ;
+    rdfs:domain res:Edition ;
+    rdfs:range res:City .
+
+res:heldOn a rdf:Property ;
+    rdfs:domain res:Edition ;
+    rdfs:range <http://SDM.org/research/http://www.w3.org/2001/XMLSchema#date> .
+
+res:includesPaper a rdf:Property ;
+    rdfs:domain res:Proceedings ;
+    rdfs:range res:Paper .
+
+res:performedBy a rdf:Property ;
+    rdfs:domain res:Review ;
+    rdfs:range res:Reviewer .
+
+res:publishedIn a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range res:Volume .
+
+res:volumeYear a rdf:Property ;
+    rdfs:domain res:Volume ;
+    rdfs:range <http://SDM.org/research/http://www.w3.org/2001/XMLSchema#gYear> .
+
+res:hasAuthor a rdf:Property ;
+    rdfs:domain res:Paper ;
+    rdfs:range res:Author .
+

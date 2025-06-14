@@ -23,21 +23,17 @@ g.bind("rdfs", RDFS)
 
 
 def clean_string_for_uri(value: str) -> str:
-    """Remove punctuation, normalize whitespace and sanitize for use in URI."""
     value = re.sub(r'[^\w\s-]', '', value)
     return re.sub(r'\s+', '_', value.strip())
 
 
 # === Duplicate Handling ===
 author_name_counts = defaultdict(int)
-# To be able to use conference names as URIs
 conf_name_counts = defaultdict(int)
-# To be able to use journal names as URIs
 journal_name_counts = defaultdict(int)
 
 
 def get_unique_author_uri(name: str) -> URIRef:
-    """Create unique URI for Author based on name, with suffix if needed."""
     base = clean_string_for_uri(name)
     count = author_name_counts[base]
     uri = URL[base] if count == 0 else URL[f"{base}_{count}"]
@@ -46,7 +42,6 @@ def get_unique_author_uri(name: str) -> URIRef:
 
 
 def get_unique_conference_uri(name: str) -> URIRef:
-    """Create unique URI for Conference based on name, with suffix if needed."""
     base = clean_string_for_uri(name)
     count = conf_name_counts[base]
     uri = URL[base] if count == 0 else URL[f"{base}_{count}"]
@@ -55,7 +50,6 @@ def get_unique_conference_uri(name: str) -> URIRef:
 
 
 def get_unique_journal_uri(name: str) -> URIRef:
-    """Create unique URI for Journal based on name, with suffix if needed."""
     base = clean_string_for_uri(name)
     count = journal_name_counts[base]
     uri = URL[base] if count == 0 else URL[f"{base}_{count}"]
@@ -64,7 +58,6 @@ def get_unique_journal_uri(name: str) -> URIRef:
 
 
 def uri(cls, raw_value):
-    """Generate URIs for individuals based on class-specific logic."""
     if cls == "Author":
         return get_unique_author_uri(str(raw_value))
     elif cls == "Paper":
@@ -74,19 +67,34 @@ def uri(cls, raw_value):
     elif cls == "Journal":
         return get_unique_journal_uri(str(raw_value))
     else:
-        # For all other entities (Review, Volume, Proceedings, etc.), use ID directly
         return URL[clean_string_for_uri(str(raw_value))]
 
 
 # === 1. Authors and Reviewers ===
 authors = pd.read_csv(DATA_DIR / "nodes_author.csv")
 author_id_to_uri = {}
-for _, row in authors.iterrows():
-    author_uri = uri("Author", row["name"])
-    author_id_to_uri[str(row["author_id"]).strip()] = author_uri
-    g.add((author_uri, RDF.type, URL.Author))
+reviewer_id_to_uri = {}
 
-# === 2. Papers and Associated Topics ===
+# Prepare list of reviewer_ids (distinct)
+reviewer_ids = set(pd.read_csv(
+    DATA_DIR / "edges_author_reviews_paper.csv")["reviewer_id"].dropna().astype(str))
+
+for _, row in authors.iterrows():
+    name = row["name"]
+    author_id = str(row["author_id"]).strip()
+    author_uri = uri("Author", name)
+
+    if author_id in reviewer_ids:
+        # This author is also a Reviewer
+        reviewer_id_to_uri[author_id] = author_uri
+        g.add((author_uri, RDF.type, URL.Reviewer))
+    else:
+        g.add((author_uri, RDF.type, URL.Author))
+
+    author_id_to_uri[author_id] = author_uri
+
+
+# === 2. Papers and Topics ===
 papers = pd.read_csv(DATA_DIR / "nodes_paper.csv")
 paper_title_to_uri = {}
 
@@ -98,21 +106,20 @@ for _, row in papers.iterrows():
     if pd.notnull(row["abstract"]):
         g.add((paper_uri, URL.hasAbstract, Literal(row["abstract"])))
 
-# Process fields_of_study as Topic URI
-if pd.notnull(row["fields_of_study"]):
-    topics_raw = eval(row["fields_of_study"])
-    topic_label = "_and_".join(clean_string_for_uri(t) for t in topics_raw)
-else:
-    topic_label = "NoSpecifiedTopic"
+    if pd.notnull(row["fields_of_study"]):
+        topics_raw = eval(row["fields_of_study"])
+        topic_label = "_and_".join(clean_string_for_uri(t) for t in topics_raw)
+    else:
+        topic_label = "NoSpecifiedTopic"
 
-topic_uri = URL[topic_label]
-g.add((paper_uri, URL.aboutTopic, topic_uri))
-g.add((topic_uri, RDF.type, URL.Topic))
+    topic_uri = URL[topic_label]
+    g.add((paper_uri, URL.aboutTopic, topic_uri))
+    g.add((topic_uri, RDF.type, URL.Topic))
 
-if pd.notnull(row["keywords"]):
-    g.add((topic_uri, URL.hasKeywords, Literal(row["keywords"].strip())))
+    if pd.notnull(row["keywords"]):
+        g.add((topic_uri, URL.hasKeywords, Literal(row["keywords"].strip())))
 
-# === 3. Reviews and their Text ===
+# === 3. Reviews ===
 reviews = pd.read_csv(DATA_DIR / "nodes_review.csv")
 for _, row in reviews.iterrows():
     review_uri = uri("Review", row["review_id"])
@@ -126,41 +133,38 @@ for _, row in journals.iterrows():
     journal_uri = uri("Journal", row["name"])
     journal_id_to_uri[row["journal_id"]] = journal_uri
     g.add((journal_uri, RDF.type, URL.Journal))
-    # g.add((journal_uri, URL.name, Literal(row["name"])))
-    # g.add((journal_uri, URL.issn, Literal(row["issn"])))
-
 
 # === 5. Volumes ===
 volumes = pd.read_csv(DATA_DIR / "nodes_volume.csv")
 for _, row in volumes.iterrows():
     volume_uri = uri("Volume", row["volume_id"])
     g.add((volume_uri, RDF.type, URL.Volume))
-# Convert volume number safely, default to 0 if invalid (e.g., NA, PP, etc.)
-raw_number = str(row["number"]).strip()
-try:
-    number = int(raw_number)
-except (ValueError, TypeError):
-    number = 0  # Default for malformed or missing volume number
 
-g.add((volume_uri, URL.hasNumber, Literal(number, datatype=XSD.integer)))
+    raw_number = str(row["number"]).strip()
+    try:
+        number = int(raw_number)
+    except (ValueError, TypeError):
+        number = 0
+    g.add((volume_uri, URL.hasNumber, Literal(number, datatype=XSD.integer)))
 
-g.add((volume_uri, URL.volumeYear, Literal(
-    int(row["year"]), datatype=XSD.gYear)))
+    try:
+        year = int(row["year"])
+        g.add((volume_uri, URL.volumeYear, Literal(year, datatype=XSD.gYear)))
+    except (ValueError, TypeError):
+        pass
 
-# === 6. Conferences (by name) and Workshops ===
+# === 6. Conferences and Workshops ===
 confs = pd.read_csv(DATA_DIR / "nodes_conference.csv")
 conf_id_to_uri = {}
 for _, row in confs.iterrows():
     conf_uri = get_unique_conference_uri(row["name"])
     conf_id_to_uri[row["conference_id"]] = conf_uri
     g.add((conf_uri, RDF.type, URL.Conference))
-    # g.add((conf_uri, URL.name, Literal(row["name"])))
 
 workshops = pd.read_csv(DATA_DIR / "nodes_workshop.csv")
 for _, row in workshops.iterrows():
     ws_uri = uri("Workshop", row["workshop_id"])
     g.add((ws_uri, RDF.type, URL.Workshop))
-    # g.add((ws_uri, URL.theme, Literal(row["theme"])))
 
 # === 7. Editions with City ===
 editions = pd.read_csv(DATA_DIR / "nodes_edition.csv")
@@ -180,13 +184,12 @@ for _, row in proceedings.iterrows():
     g.add(
         (uri("Proceedings", row["proceedings_id"]), RDF.type, URL.Proceedings))
 
-# === 9. Edges (Relationships) ===
+# === 9. Edges ===
 
 
 def add_edge(csv, subj_cls, pred, obj_cls, subj_col, obj_col, use_title_for_paper=False):
     df = pd.read_csv(DATA_DIR / csv)
     for _, row in df.iterrows():
-        # === Resolve subject URI ===
         if use_title_for_paper and subj_cls == "Paper":
             subj_uri = paper_title_to_uri[row[subj_col]]
         elif subj_cls == "Conference":
@@ -198,7 +201,6 @@ def add_edge(csv, subj_cls, pred, obj_cls, subj_col, obj_col, use_title_for_pape
         else:
             subj_uri = uri(subj_cls, row[subj_col])
 
-        # === Resolve object URI ===
         if use_title_for_paper and obj_cls == "Paper":
             obj_uri = paper_title_to_uri[row[obj_col]]
         elif obj_cls == "Conference":
@@ -210,7 +212,6 @@ def add_edge(csv, subj_cls, pred, obj_cls, subj_col, obj_col, use_title_for_pape
         else:
             obj_uri = uri(obj_cls, row[obj_col])
 
-        # === Add triple ===
         g.add((subj_uri, URL[pred], obj_uri))
 
 
@@ -224,17 +225,15 @@ add_edge("edges_author_corresponds_paper.csv", "Paper", "hasCorrespondingAuthor"
 add_edge("edges_paper_has_review.csv", "Paper", "hasReview",
          "Review", "paper_id", "review_id", use_title_for_paper=True)
 
-# Join to properly link Review -> performedBy -> Reviewer
 reviewer_map = pd.read_csv(DATA_DIR / "edges_author_reviews_paper.csv")
 paper_to_review = pd.read_csv(DATA_DIR / "edges_paper_has_review.csv")
-
-# Join to get (review_id, reviewer_id)
 review_performance = pd.merge(paper_to_review, reviewer_map, on="paper_id")
 
 for _, row in review_performance.iterrows():
     review_uri = uri("Review", row["review_id"])
-    reviewer_uri = author_id_to_uri.get(str(row["reviewer_id"]).strip())
-    g.add((review_uri, URL["performedBy"], reviewer_uri))
+    reviewer_uri = reviewer_id_to_uri.get(str(row["reviewer_id"]).strip())
+    if reviewer_uri:
+        g.add((review_uri, URL["performedBy"], reviewer_uri))
 
 
 # Publication
@@ -323,4 +322,13 @@ print(f"ABOX successfully created at: {OUT_PATH}")
 # - Output is written to:
 #   "GroupIvanWalter-B2-MartinezTroiani.rdf"
 
+# REVIEWERS MODELING
+# ------------------------------------------------------------
+# - Reviewers are defined as a subclass of Authors in the TBOX.
+# - In the ABOX, we extract the reviewer IDs from edges_author_reviews_paper.csv
+#   and identify them in nodes_author.csv to recover their names.
+# - Their URIs are generated using the same logic as for authors, ensuring consistency.
+# - These individuals are explicitly typed as res:Reviewer (not just res:Author),
+#   since rdf:type does not propagate automatically via subclass inference without entailment.
+# - This allows us to cleanly model the triple: <Review> res:performedBy <Reviewer>.
 # ------------------------------------------------------------
