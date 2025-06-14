@@ -74,13 +74,16 @@ def uri(cls, raw_value):
     elif cls == "Journal":
         return get_unique_journal_uri(str(raw_value))
     else:
-        return URL[f"{cls}_{str(raw_value).strip()}"]
+        # For all other entities (Review, Volume, Proceedings, etc.), use ID directly
+        return URL[clean_string_for_uri(str(raw_value))]
 
 
 # === 1. Authors and Reviewers ===
 authors = pd.read_csv(DATA_DIR / "nodes_author.csv")
+author_id_to_uri = {}
 for _, row in authors.iterrows():
     author_uri = uri("Author", row["name"])
+    author_id_to_uri[str(row["author_id"]).strip()] = author_uri
     g.add((author_uri, RDF.type, URL.Author))
 
 # === 2. Papers and Associated Topics ===
@@ -95,21 +98,19 @@ for _, row in papers.iterrows():
     if pd.notnull(row["abstract"]):
         g.add((paper_uri, URL.hasAbstract, Literal(row["abstract"])))
 
-    # Process fields_of_study as Topic URI
-    if pd.notnull(row["fields_of_study"]):
-        topics_raw = eval(row["fields_of_study"])
-        topic_label = "_and_".join(clean_string_for_uri(t) for t in topics_raw)
-    else:
-        topic_label = "NoSpecifiedTopic"
+# Process fields_of_study as Topic URI
+if pd.notnull(row["fields_of_study"]):
+    topics_raw = eval(row["fields_of_study"])
+    topic_label = "_and_".join(clean_string_for_uri(t) for t in topics_raw)
+else:
+    topic_label = "NoSpecifiedTopic"
 
-    # We add paper_id to ensure uniqueness of URI
-    topic_uri = URL[f"Topic_{topic_label}_{row['paper_id']}"]
-    g.add((paper_uri, URL.aboutTopic, topic_uri))
-    g.add((topic_uri, RDF.type, URL.Topic))
+topic_uri = URL[topic_label]
+g.add((paper_uri, URL.aboutTopic, topic_uri))
+g.add((topic_uri, RDF.type, URL.Topic))
 
-    if pd.notnull(row["keywords"]):
-        keyword_string = row["keywords"].strip()
-        g.add((topic_uri, URL.hasKeywords, Literal(keyword_string)))
+if pd.notnull(row["keywords"]):
+    g.add((topic_uri, URL.hasKeywords, Literal(row["keywords"].strip())))
 
 # === 3. Reviews and their Text ===
 reviews = pd.read_csv(DATA_DIR / "nodes_review.csv")
@@ -134,10 +135,17 @@ volumes = pd.read_csv(DATA_DIR / "nodes_volume.csv")
 for _, row in volumes.iterrows():
     volume_uri = uri("Volume", row["volume_id"])
     g.add((volume_uri, RDF.type, URL.Volume))
-    g.add((volume_uri, URL.hasNumber, Literal(
-        int(row["number"]), datatype=XSD.integer)))
-    g.add((volume_uri, URL.volumeYear, Literal(
-        int(row["year"]), datatype=XSD.gYear)))
+# Convert volume number safely, default to 0 if invalid (e.g., NA, PP, etc.)
+raw_number = str(row["number"]).strip()
+try:
+    number = int(raw_number)
+except (ValueError, TypeError):
+    number = 0  # Default for malformed or missing volume number
+
+g.add((volume_uri, URL.hasNumber, Literal(number, datatype=XSD.integer)))
+
+g.add((volume_uri, URL.volumeYear, Literal(
+    int(row["year"]), datatype=XSD.gYear)))
 
 # === 6. Conferences (by name) and Workshops ===
 confs = pd.read_csv(DATA_DIR / "nodes_conference.csv")
@@ -162,7 +170,7 @@ for _, row in editions.iterrows():
     g.add((edition_uri, URL.heldOn, Literal(
         f"{row['year']}-01-01", datatype=XSD.date)))
     city = row["location"].split(",")[0].strip()
-    city_uri = uri("City", clean_string_for_uri(city))
+    city_uri = URL[clean_string_for_uri(city)]
     g.add((city_uri, RDF.type, URL.City))
     g.add((edition_uri, URL.heldIn, city_uri))
 
@@ -178,19 +186,31 @@ for _, row in proceedings.iterrows():
 def add_edge(csv, subj_cls, pred, obj_cls, subj_col, obj_col, use_title_for_paper=False):
     df = pd.read_csv(DATA_DIR / csv)
     for _, row in df.iterrows():
-        subj_uri = (
-            uri(subj_cls, row[subj_col])
-            if not use_title_for_paper or subj_cls != "Paper"
-            else paper_title_to_uri[row[subj_col]]
-        )
-        obj_uri = (
-            uri(obj_cls, row[obj_col])
-            if not use_title_for_paper or obj_cls != "Paper"
-            else paper_title_to_uri[row[obj_col]]
-        )
-        # Special case: use conference name-based URI
-        if subj_cls == "Conference":
+        # === Resolve subject URI ===
+        if use_title_for_paper and subj_cls == "Paper":
+            subj_uri = paper_title_to_uri[row[subj_col]]
+        elif subj_cls == "Conference":
             subj_uri = conf_id_to_uri[row[subj_col]]
+        elif subj_cls == "Author":
+            subj_uri = author_id_to_uri.get(str(row[subj_col]).strip())
+        elif subj_cls == "Journal":
+            subj_uri = journal_id_to_uri[row[subj_col]]
+        else:
+            subj_uri = uri(subj_cls, row[subj_col])
+
+        # === Resolve object URI ===
+        if use_title_for_paper and obj_cls == "Paper":
+            obj_uri = paper_title_to_uri[row[obj_col]]
+        elif obj_cls == "Conference":
+            obj_uri = conf_id_to_uri[row[obj_col]]
+        elif obj_cls == "Author":
+            obj_uri = author_id_to_uri.get(str(row[obj_col]).strip())
+        elif obj_cls == "Journal":
+            obj_uri = journal_id_to_uri[row[obj_col]]
+        else:
+            obj_uri = uri(obj_cls, row[obj_col])
+
+        # === Add triple ===
         g.add((subj_uri, URL[pred], obj_uri))
 
 
@@ -201,10 +221,21 @@ add_edge("edges_author_corresponds_paper.csv", "Paper", "hasCorrespondingAuthor"
          "Author", "paper_id", "author_id", use_title_for_paper=True)
 
 # Reviews
-add_edge("edges_author_reviews_paper.csv", "Review",
-         "performedBy", "Reviewer", "paper_id", "reviewer_id")
 add_edge("edges_paper_has_review.csv", "Paper", "hasReview",
          "Review", "paper_id", "review_id", use_title_for_paper=True)
+
+# Join to properly link Review -> performedBy -> Reviewer
+reviewer_map = pd.read_csv(DATA_DIR / "edges_author_reviews_paper.csv")
+paper_to_review = pd.read_csv(DATA_DIR / "edges_paper_has_review.csv")
+
+# Join to get (review_id, reviewer_id)
+review_performance = pd.merge(paper_to_review, reviewer_map, on="paper_id")
+
+for _, row in review_performance.iterrows():
+    review_uri = uri("Review", row["review_id"])
+    reviewer_uri = author_id_to_uri.get(str(row["reviewer_id"]).strip())
+    g.add((review_uri, URL["performedBy"], reviewer_uri))
+
 
 # Publication
 add_edge("edges_paper_published_in_volume.csv", "Paper", "publishedIn",
@@ -231,3 +262,65 @@ add_edge("edges_paper_cites_paper.csv", "Paper", "cites", "Paper",
 # === Serialize Graph ===
 g.serialize(destination=OUT_PATH, format="xml")
 print(f"ABOX successfully created at: {OUT_PATH}")
+
+# ------------------------------------------------------------
+# ABOX DESIGN NOTES AND MODELING STRATEGY
+# ------------------------------------------------------------
+
+# URI GENERATION AND DISAMBIGUATION
+# ------------------------------------------------------------
+# - URIs for Authors, Conferences, Journals, and Papers are based on their names or titles.
+#   This improves readability and semantic clarity in the knowledge graph.
+# - All string inputs are sanitized to remove punctuation and normalize whitespace using
+#   clean_string_for_uri(). Spaces become underscores, special characters are removed.
+#
+# - Deduplication logic is applied: if multiple entities share the same cleaned name,
+#   a numeric suffix (_1, _2, ...) is appended to ensure each URI is unique.
+#   For example: "John Smith" becomes John_Smith, John_Smith_1, John_Smith_2.
+#
+# - Paper URIs are derived directly from their sanitized titles.
+# - Topic URIs are built by concatenating all fields of study for a paper using "_and_".
+#   These URIs are shared across papers that reference the same topic(s), such as:
+#   http://SDM.org/research/Medicine_and_AI
+#   The same topic may be linked to multiple papers, and the associated keywords can differ.
+#   This is supported in RDF, as literals are not considered defining identifiers for resources.
+#
+# - If no fields_of_study are present, the fallback topic URI "NoSpecifiedTopic" is used.
+# - City URIs are constructed from the first part of the location field (before comma),
+#   using the raw city name (e.g., http://SDM.org/research/London).
+#   No deduplication suffix is applied, so cities with the same name share a single URI.
+
+# TOPIC AND KEYWORDS MODELING
+# ------------------------------------------------------------
+# - Topics are dynamically generated based on the fields_of_study of each paper.
+# - Keywords are linked to the Topic (not directly to the Paper) using :hasKeywords.
+# - Each :hasKeywords triple contains the entire keyword string as found in the paper CSV.
+#   This means multiple papers sharing the same topic may contribute different keyword strings
+#   to the same Topic resource.
+# - This design reflects the idea that keywords describe the topic collectively, not exclusively.
+
+# EDGE MODELING
+# ------------------------------------------------------------
+# - Edges (relationships) are added by reading CSV files and matching subjects/objects
+#   to the correct URIs based on class and CSV column mappings.
+# - Special cases:
+#   * Papers use title-based URIs, tracked with paper_title_to_uri.
+#   * Conferences use name-based URIs, mapped from their CSV ID via conf_id_to_uri.
+#   * Journals use name-based URIs, mapped similarly using journal_id_to_uri.
+# - Relationship direction strictly follows the TBOX definition.
+#   For example, :hasAuthor has domain :Paper and range :Author,
+#   so triples are created as: <Paper> :hasAuthor <Author>.
+
+# RDF TYPE MINIMIZATION
+# ------------------------------------------------------------
+# - rdf:type is only added for individuals where it is not otherwise inferable from properties.
+# - This keeps the RDF lean and relies on RDFS reasoning to infer class membership
+#   where appropriate.
+
+# SERIALIZATION
+# ------------------------------------------------------------
+# - The RDF graph is serialized in RDF/XML format.
+# - Output is written to:
+#   "GroupIvanWalter-B2-MartinezTroiani.rdf"
+
+# ------------------------------------------------------------
