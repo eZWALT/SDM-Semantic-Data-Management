@@ -92,7 +92,7 @@ g.serialize(destination="GroupIvanWalter-B1-MartinezTroiani.rdfs", format="xml")
 # :hasProceedings         An Edition results in a Proceedings collection.
 # :publishedIn            A Paper is published in a specific Volume.
 # :hasVolume              A Journal includes one or more Volumes.
-# :hasNumber              A Volume has a numeric identifier (e.g., Volume 2).
+# :hasNumber              A Volume has a numeric identifier (e.g., Volume 2, xsd:integer).
 # :volumeYear             A Volume is associated with a publication year (xsd:gYear).
 # :hasEdition             A Conference or Workshop (Event) has one or more Editions.
 # :heldIn                 An Edition is held in a City.
