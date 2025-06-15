@@ -1,0 +1,41 @@
+{
+  "best_parameters": {
+    "embedding_dim": 256,
+    "num_epochs": 10,
+    "batch_size": 64,
+    "num_negatives": 3,
+    "learning_rate": 0.001,
+    "early_stopping": true,
+    "patience": 5,
+    "relative_delta": 0.002,
+    "regularizer_weight": 0.1
+  },
+  "metrics": {
+    "inverse_harmonic_mean_rank": 0.0017361855134367943,
+    "hits_at_10": 0.0025719449464757403,
+    "inverse_geometric_mean_rank": 0.00031594655592925847,
+    "adjusted_inverse_harmonic_mean_rank": 0.000649749935005408,
+    "median_absolute_deviation": 3297.307333956459,
+    "adjusted_geometric_mean_rank_index": 0.035081227379714974,
+    "variance": 6707285.0,
+    "adjusted_arithmetic_mean_rank_index": 0.015419446457600405,
+    "geometric_mean_rank": 3165.09228515625,
+    "standard_deviation": 2589.8427734375,
+    "adjusted_arithmetic_mean_rank": 0.9845840083258174,
+    "inverse_arithmetic_mean_rank": 0.00022756174439564347,
+    "arithmetic_mean_rank": 4394.41162109375,
+    "inverse_median_rank": 0.00022763486776966602,
+    "harmonic_mean_rank": 575.9753161518387,
+    "median_rank": 4393.0,
+    "z_geometric_mean_rank": 4.218293516377415,
+    "z_inverse_harmonic_mean_rank": 5.742644582210843,
+    "z_arithmetic_mean_rank": 3.1983393199925274,
+    "count": 14386.0,
+    "hits_at_1": 0.0004170721534825525,
+    "hits_at_3": 0.000834144306965105,
+    "hits_at_5": 0.0015987765883497846,
+    "z_hits_at_k": 5.18040388595866,
+    "adjusted_hits_at_k": 0.0014491268438678656,
+    "embedding_dim": 256
+  }
+}
