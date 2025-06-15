@@ -1,52 +1,101 @@
-from SPARQLWrapper import SPARQLWrapper, JSON
 import streamlit as st
-from streamlit_extras.badges import badge 
 import numpy as np
 import seaborn as sns
-from adjustText import adjust_text
-import pandas as pd
 import matplotlib.pyplot as plt
-
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import PCA
 import umap
 from sklearn.manifold import TSNE
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
+from adjustText import adjust_text
 
-# ===----------------------------------------------------------------------===#
-# Embeddings Applications (And dashboard)                                     #
-#                                                                             #
-# Section C.4                                                                 #                                                                          
-# Author: Walter J.T.V                                                        #
-# ===----------------------------------------------------------------------===#
+import torch
+import pandas as pd
 
-###################################### DUMMY LOADER (Replace with real KG data)
+@st.cache_data(show_spinner=True)
+def load_kg_data_and_embeddings(model_dir):
+    model = torch.load(f"{model_dir}/trained_model.pkl", map_location=torch.device('cpu'))
 
-def load_dummy_data():
-    np.random.seed(42)
-    paper_ids = [f"P{str(i).zfill(3)}" for i in range(1, 51)]
-    author_ids = [f"A{str(i).zfill(3)}" for i in range(1, 21)]
+    ent_df = pd.read_csv(f"{model_dir}/entity_to_id.tsv.gz", sep='\t', compression='gzip')
+    rel_df = pd.read_csv(f"{model_dir}/relation_to_id.tsv.gz", sep='\t', compression='gzip')
 
-    embeddings_papers = np.random.rand(len(paper_ids), 100)
-    embeddings_authors = np.random.rand(len(author_ids), 100)
+    entity_to_id = dict(zip(ent_df.iloc[:, 1], ent_df.iloc[:, 0]))
+    id_to_entity = {v: k for k, v in entity_to_id.items()}
+    relation_to_id = dict(zip(rel_df.iloc[:, 1], rel_df.iloc[:, 0]))
 
-    clusters_papers = np.random.randint(0, 5, size=len(paper_ids))
-    clusters_authors = np.random.randint(0, 3, size=len(author_ids))
+    triples_df = pd.read_csv("abox_export.tsv", sep='\t', header=None, names=["head", "relation", "tail"])
+    all_triples = triples_df.values
+
+    paper_ids_set = set()
+    author_ids_set = set()
+
+    for h, r, t in all_triples:
+        if r == "<http://SDM.org/research/hasAuthor>":
+            paper_ids_set.add(h)
+            author_ids_set.add(t)
+        elif r == "<http://SDM.org/research/cites>":
+            paper_ids_set.add(h)
+            paper_ids_set.add(t)
+
+    paper_idxs = [entity_to_id[e] for e in paper_ids_set if e in entity_to_id]
+    author_idxs = [entity_to_id[e] for e in author_ids_set if e in entity_to_id]
+
+    with torch.no_grad():
+        embeddings_tensor = model.entity_representations[0]().cpu().numpy()
+
+    paper_embeddings = embeddings_tensor[paper_idxs]
+    author_embeddings = embeddings_tensor[author_idxs]
+
+    paper_ids = [id_to_entity[i] for i in paper_idxs]
+    author_ids = [id_to_entity[i] for i in author_idxs]
+
+    paper_titles = {
+        uri: uri.split("/")[-1].replace(">", "").replace("_", " ")
+        for uri in paper_ids
+    }
+    author_names = {
+        uri: uri.split("/")[-1].replace(">", "").replace("_", " ")
+        for uri in author_ids
+    }
 
     paper_to_idx = {pid: i for i, pid in enumerate(paper_ids)}
     author_to_idx = {aid: i for i, aid in enumerate(author_ids)}
 
-    paper_titles = {pid: f"Paper Title {pid}" for pid in paper_ids}
-    author_names = {aid: f"Author {aid}" for aid in author_ids}
+    # 🔷 Perform clustering
+    paper_embeddings_scaled = StandardScaler().fit_transform(paper_embeddings)
+    author_embeddings_scaled = StandardScaler().fit_transform(author_embeddings)
 
-    return (paper_ids, author_ids,
-            embeddings_papers, embeddings_authors,
-            clusters_papers, clusters_authors,
-            paper_to_idx, author_to_idx,
-            paper_titles, author_names)
+    k_paper = compute_optimal_clusters(paper_embeddings_scaled, max_k=8)
+    k_author = compute_optimal_clusters(author_embeddings_scaled, max_k=8)
 
-###################################### RECOMMENDATION
+    kmeans_paper = KMeans(n_clusters=k_paper, random_state=42).fit(paper_embeddings_scaled)
+    kmeans_author = KMeans(n_clusters=k_author, random_state=42).fit(author_embeddings_scaled)
 
-def recommend_items(query, embeddings, id_to_idx, top_k=5):
+    clusters_papers = kmeans_paper.labels_
+    clusters_authors = kmeans_author.labels_
+
+    return (
+        model,
+        paper_ids, author_ids,
+        paper_embeddings, author_embeddings,
+        clusters_papers, clusters_authors,
+        paper_to_idx, author_to_idx,
+        paper_titles, author_names
+    )
+
+def compute_optimal_clusters(X, max_k=10):
+    scores = []
+    for k in range(2, max_k + 1):
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        labels = kmeans.fit_predict(X)
+        score = silhouette_score(X, labels)
+        scores.append((k, score))
+    best_k, _ = max(scores, key=lambda x: x[1])
+    return best_k
+
+def recommend_items(query, embeddings, id_to_idx, top_k=10):
     if query not in id_to_idx:
         return [], []
     idx = id_to_idx[query]
@@ -55,8 +104,6 @@ def recommend_items(query, embeddings, id_to_idx, top_k=5):
     sims[idx] = -1  # exclude self
     top_indices = sims.argsort()[-top_k:][::-1]
     return top_indices, sims[top_indices]
-
-###################################### REDUCTION METHODS
 
 def get_reducer(name="umap"):
     if name == "umap":
@@ -68,8 +115,6 @@ def get_reducer(name="umap"):
     else:
         raise ValueError(f"Unknown reducer: {name}")
 
-###################################### CLUSTERING VISUALIZATION
-
 def plot_clusters(embeddings, clusters, title, reducer_name="umap", labels=None, show_labels=False):
     reducer = get_reducer(reducer_name)
     reduced = reducer.fit_transform(embeddings)
@@ -77,7 +122,7 @@ def plot_clusters(embeddings, clusters, title, reducer_name="umap", labels=None,
     fig, ax = plt.subplots(figsize=(10, 7))
     sns.set(style="whitegrid")
 
-    scatter = sns.scatterplot(
+    sns.scatterplot(
         x=reduced[:, 0],
         y=reduced[:, 1],
         hue=clusters,
@@ -100,22 +145,17 @@ def plot_clusters(embeddings, clusters, title, reducer_name="umap", labels=None,
         try:
             adjust_text(texts, arrowprops=dict(arrowstyle="-", color='gray', lw=0.5))
         except Exception:
-            pass  # gracefully skip if adjust_text fails
+            pass
 
     st.pyplot(fig)
     plt.clf()
 
-###################################### RECOMMENDER SYSTEMS (UI)
-
 def paper_recommender_ui(paper_ids, embeddings_papers, paper_to_idx, paper_titles):
     st.subheader("📄 Paper Recommender")
-
     col1, col2 = st.columns([1, 5])
     with col1:
-        st.markdown(f"**Search for a Paper**")
         selected_paper = st.selectbox("Choose Paper ID", options=paper_ids, index=0)
     with col2:
-        st.markdown("**Title**")
         st.success(paper_titles[selected_paper])
 
     top_idx, scores = recommend_items(selected_paper, embeddings_papers, paper_to_idx)
@@ -125,7 +165,6 @@ def paper_recommender_ui(paper_ids, embeddings_papers, paper_to_idx, paper_title
         pid = paper_ids[idx]
         title = paper_titles[pid]
         similarity_color = f"rgba({int(255 - score*255)}, {int(score*255)}, 150, 0.2)"
-
         with st.container():
             st.markdown(f"""
             <div style="background-color:{similarity_color}; padding: 12px; border-radius: 10px; margin-bottom: 10px;">
@@ -137,13 +176,10 @@ def paper_recommender_ui(paper_ids, embeddings_papers, paper_to_idx, paper_title
 
 def author_recommender_ui(author_ids, embeddings_authors, author_to_idx, author_names):
     st.subheader("👩‍🔬 Author Recommender")
-
     col1, col2 = st.columns([1, 5])
     with col1:
-        st.markdown(f"**Search for an Author**")
         selected_author = st.selectbox("Choose Author ID", options=author_ids, index=0)
     with col2:
-        st.markdown("**Name**")
         st.info(author_names[selected_author])
 
     top_idx, scores = recommend_items(selected_author, embeddings_authors, author_to_idx)
@@ -153,7 +189,6 @@ def author_recommender_ui(author_ids, embeddings_authors, author_to_idx, author_
         aid = author_ids[idx]
         name = author_names[aid]
         similarity_color = f"rgba({int(255 - score*255)}, {int(score*255)}, 200, 0.15)"
-
         with st.container():
             st.markdown(f"""
             <div style="background-color:{similarity_color}; padding: 12px; border-radius: 10px; margin-bottom: 10px;">
@@ -162,8 +197,6 @@ def author_recommender_ui(author_ids, embeddings_authors, author_to_idx, author_
                 <span style='font-size: 0.9em;'>💡 Similarity Score: <b>{score:.3f}</b></span>
             </div>
             """, unsafe_allow_html=True)
-
-###################################### CLUSTERING UI
 
 def clustering_ui(
     embeddings_authors,
@@ -177,26 +210,16 @@ def clustering_ui(
     st.header("Clustering Visualizations")
 
     st.subheader("👥 Authors Clustering")
-    with st.expander("ℹ️ About this plot", expanded=False):
-        st.markdown(f"""
-        This visualization shows how **authors** are grouped based on their vector embeddings from the knowledge graph.  
-        Similar authors are placed closer together after **{reducer_name.upper()}** dimensionality reduction.
-        """)
+    st.caption(f"Clustered into {len(set(clusters_authors))} groups")
     show_labels_auth = st.checkbox("Show Author Labels", key="auth_labels")
     author_labels = [author_names[aid] for aid in sorted(author_names)]
     plot_clusters(embeddings_authors, clusters_authors, "Clusters of Authors", reducer_name, labels=author_labels, show_labels=show_labels_auth)
 
     st.subheader("📚 Papers Clustering")
-    with st.expander("ℹ️ About this plot", expanded=False):
-        st.markdown(f"""
-        This shows how **papers** are clustered.  
-        The embedding vectors may reflect semantic similarity, citation networks, or topic relationships, projected using **{reducer_name.upper()}**.
-        """)
+    st.caption(f"Clustered into {len(set(clusters_papers))} groups")
     show_labels_paper = st.checkbox("Show Paper Labels", key="paper_labels")
     paper_labels = [paper_titles[pid] for pid in sorted(paper_titles)]
     plot_clusters(embeddings_papers, clusters_papers, "Clusters of Papers", reducer_name, labels=paper_labels, show_labels=show_labels_paper)
-
-###################################### MAIN APP
 
 def main():
     st.set_page_config(page_title="KGE Explorer", layout="wide")
@@ -208,16 +231,18 @@ def main():
         This interactive app lets you:
         - Explore **recommendations** for papers and authors using embedding similarity.
         - Visualize **clustering** of entities based on their semantic relationships.
-        
-        Built for navigating complex knowledge graph representations with ease!
         """)
 
-    # Load dummy embeddings and metadata
-    (paper_ids, author_ids,
-     embeddings_papers, embeddings_authors,
-     clusters_papers, clusters_authors,
-     paper_to_idx, author_to_idx,
-     paper_titles, author_names) = load_dummy_data()
+    model_dir = "models/transh_model"
+
+    (
+        model,
+        paper_ids, author_ids,
+        embeddings_papers, embeddings_authors,
+        clusters_papers, clusters_authors,
+        paper_to_idx, author_to_idx,
+        paper_titles, author_names
+    ) = load_kg_data_and_embeddings(model_dir)
 
     with st.sidebar:
         st.header("🛠️ Settings")
@@ -230,7 +255,7 @@ def main():
         reducer_choice = st.selectbox(
             "Dimensionality Reduction",
             options=["umap", "pca", "tsne"],
-            index=1
+            index=0
         )
 
     if task == "Recommend Papers":
@@ -252,4 +277,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
