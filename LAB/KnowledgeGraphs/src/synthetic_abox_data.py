@@ -1,7 +1,4 @@
-# This script generates synthetic proceedings data from the given paper and edition edges.
-# We generate a CSV treating proceedings as nodes.
-# We generate a CSV for edges between editions and proceedings,
-# and another for edges between proceedings and papers.
+# This script generates synthetic additional CSV data needed to create ABOX
 
 import pandas as pd
 import numpy as np
