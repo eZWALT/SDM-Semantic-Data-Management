@@ -1,0 +1,18 @@
+# Most common topics and their associated keywords, aggregated from all papers
+
+PREFIX res: <http://SDM.org/research/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?topicLabel (GROUP_CONCAT(DISTINCT ?keywords; separator="; ") AS ?allKeywords)
+WHERE {
+  ?paper rdf:type res:Paper ;
+         res:aboutTopic ?topic .
+
+  ?topic rdf:type res:Topic ;
+         res:hasKeywords ?keywords .
+
+  BIND(REPLACE(STR(?topic), "http://SDM.org/research/", "") AS ?topicLabel)
+}
+GROUP BY ?topicLabel
+ORDER BY DESC(COUNT(?paper))
+LIMIT 10

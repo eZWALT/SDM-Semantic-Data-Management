@@ -1,0 +1,17 @@
+# List all papers that a specified reviewer has performed a review on, and their content
+
+PREFIX res: <http://SDM.org/research/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?paperTitle ?reviewText
+WHERE {
+  ?review rdf:type res:Review ;
+          res:performedBy res:O_Stenzel ;
+          res:hasContent ?reviewText .
+
+  ?paper res:hasReview ?review .
+
+  # We extract paper title from URI
+  BIND(REPLACE(STR(?paper), "http://SDM.org/research/", "") AS ?paperTitle)
+}
+LIMIT 100
